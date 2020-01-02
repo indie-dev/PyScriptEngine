@@ -20,8 +20,18 @@ class Engine:
         else:
             #Raise a missing file exception
             raise Exception("%s is not a real file"%(html_document_path))
+        #Get the unaccepted functions name
+        __fname = os.path.abspath(__file__).replace("engine\\__init__.py", "global_data/unaccepted_functions.txt")
+        #Get the unaccepted modules name
+        __mname = os.path.abspath(__file__).replace("engine\\__init__.py", "global_data/unaccepted_modules.txt")
         #We will have to update the files in global_data
-        __updater = Updater()
+        __functions_updater = Updater("https://raw.githubusercontent.com/indie-dev/PyScriptEngine/master/global_data/unaccepted_functions.txt", "global_data/unaccepted_functions.txt")
+        #Update the unaccepted functions
+        __functions_updater.update()
+        #We will now update the unaccepted modules
+        __modules_updater = Updater("https://raw.githubusercontent.com/indie-dev/PyScriptEngine/master/global_data/unaccepted_modules.txt", "global_data/unaccepted_modules.txt")
+        #Update the unaccepted modules
+        __unaccepted_modules.update()
     def __gen_fname(self):
         #Create a variable for alphabet and number storing
         __mix = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789"
