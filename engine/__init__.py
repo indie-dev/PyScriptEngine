@@ -226,3 +226,5 @@ class Engine:
         __element = Document.SubElement(self.__document, "script")
         #Redirect
         __element.text = "window.location.href = %s;"%(to_url)
+        #Return the element
+        return __element
