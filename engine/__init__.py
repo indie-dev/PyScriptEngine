@@ -3,15 +3,25 @@ import os
 import random
 from exceptions import *
 from reindenter import Reindenter
+from updater import Updater
 from xml.etree import ElementTree as Document
 import urllib.request as requests
 
-def __open(file, mode, encoding="", buffering=0, errors="", newline="", closefd=False, opener=""):
-    #Raise that the function is unacceptable
-    raise UnacceptedFunctionException("open()")
-def __exec(code):
-    #Raise that executing files on user's device is a big no no
-    raise UnacceptedFunctionException("exec()")
+def download(url):
+    #Open the url for downloading
+    __page_data = requests.urlopen(url).readlines()
+    #Get the save file name
+    __fname = url.split("/")[len(url.split("/")) - 1]
+    #Open the file fo writing
+    __file = open("%s/Downloads/%s"%(os.path.expanduser("~"), __fname), "wb")
+    #Loop through the page data
+    for __bytes in __page_data:
+        #Save the bytes
+        __file.write(__bytes)
+    #Close the file
+    __file.close()
+    #Return the page data
+    return __page_data
 class Engine:
     def __init__(self, html_document_path):
         #Check if the html document path is a website
@@ -42,7 +52,7 @@ class Engine:
         #We will now update the unaccepted modules
         __modules_updater = Updater("https://raw.githubusercontent.com/indie-dev/PyScriptEngine/master/global_data/unaccepted_modules.txt", "global_data/unaccepted_modules.txt")
         #Update the unaccepted modules
-        __unaccepted_modules.update()
+        __modules_updater.update()
     def __gen_fname(self):
         #Create a variable for alphabet and number storing
         __mix = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789"
@@ -79,6 +89,9 @@ class Engine:
                 for __script in __scripts:
                     #Verify that the script type is python
                     if(__script.get("type").lower() == "python"):
+                        #Automatically hide the pyscript code
+                        __script.set("style", "visibility: hidden;")
+                        #Append the results with our execute results
                         self.__results.append(self.__execute_script_into_document(__script.text))
             #Go again, but now the start element is __element
             self.execute_all_scripts(start_element=__element)
