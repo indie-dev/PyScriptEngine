@@ -4,6 +4,7 @@ import random
 from exceptions import *
 from reindenter import Reindenter
 from xml.etree import ElementTree as Document
+import urllib.request as requests
 
 def __open(file, mode, encoding="", buffering=0, errors="", newline="", closefd=False, opener=""):
     #Raise that the function is unacceptable
@@ -13,8 +14,18 @@ def __exec(code):
     raise UnacceptedFunctionException("exec()")
 class Engine:
     def __init__(self, html_document_path):
-        #Verify if the document path exists
-        if(os.path.exists(html_document_path)):
+        #Check if the html document path is a website
+        if(html_document_path.startswith("http")):
+            #Use urllib for reading the content of the website
+            __page_content = requests.urlopen(html_document_path).readlines()
+            #Create a string content for the site's content
+            __content = ""
+            for __line in __page_content:
+                #Update our content variable with a string version of the line
+                __content += __line.decode()
+            #Parse the string
+            self.__document = Document.fromstring(__content)
+        elif(os.path.exists(html_document_path)):
             #Open the document for parsing
             self.__document = Document.parse(html_document_path).getroot()
         else:
