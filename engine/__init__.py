@@ -221,3 +221,8 @@ class Engine:
     def get_document(self):
         #Return the document
         return self.__document
+    def redirect(self, to_url):
+        #Create an xml sub element
+        __element = Document.SubElement(self.__document, "script")
+        #Redirect
+        __element.text = "window.location.href = %s;"%(to_url)
