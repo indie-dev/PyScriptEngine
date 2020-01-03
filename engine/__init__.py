@@ -6,6 +6,7 @@ from reindenter import Reindenter
 from updater import Updater
 from xml.etree import ElementTree as Document
 import urllib.request as requests
+import imp
 
 def download(url):
     #Open the url for downloading
@@ -23,7 +24,11 @@ def download(url):
     #Return the page data
     return __page_data
 class Engine:
+    #This is the PyScriptEngine. It is responsible for compiling embedded python code, as well as
+    #Ensuring a safe PyScript coding environment. If in server mode, you will automatically reload this library
+    #Every new connection
     def __init__(self, html_document_path):
+        self.__scripts_to_ignore = list()
         #Check if the html document path is a website
         if(html_document_path.startswith("http")):
             #Use urllib for reading the content of the website
@@ -53,7 +58,9 @@ class Engine:
         __modules_updater = Updater("https://raw.githubusercontent.com/indie-dev/PyScriptEngine/master/global_data/unaccepted_modules.txt", "global_data/unaccepted_modules.txt")
         #Update the unaccepted modules
         __modules_updater.update()
+
     def __gen_fname(self):
+        #Generates a temporary name for python files being stored
         #Create a variable for alphabet and number storing
         __mix = "AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789"
         #Initiate an empty text variable
@@ -67,37 +74,72 @@ class Engine:
         #Return the text variable
         return __text
 
-    def execute_all_scripts(self, start_element=None):
-        #Check if the start element is set
-        if(start_element is not None):
-            #Set the root element to the start element
-            __root_element = start_element
-        else:
+    def execute_all_scripts(self, start_element=None, clear_script_post_execution=True):
+        #Executes all of the scripts embedded in the html document
+        try:
+            #Check if the start element is set
+            if(start_element is not None):
+                #Set the root element to the start element
+                __root_element = start_element
+            else:
+                #Create a results list
+                self.__results = list()
+                #Set the root element to the document
+                __root_element = self.get_document()
             #Create a results list
-            self.__results = list()
-            #Set the root element to the document
-            __root_element = self.get_document()
-        #Create a results list
-        __results_list = list()
-        #Loop through all of the elements
-        for __element in __root_element.getchildren():
-            #Isolate all elements with the script tag
+            __results_list = list()
+            #Loop through all of the elements
+            for __element in __root_element.getchildren():
+                #Isolate all elements with the script tag
+                __scripts = __element.findall("script")
+                #Check if the length of the scripts list is greater than 0
+                if(len(__scripts) > 0):
+                    #Loop through the script elements
+                    for __script in __scripts:
+                        #Verify that the script type is python
+                        if(__script.get("type").lower() == "python"):
+                            if(__script.get("src") is not None):
+                                #Check if the script text is empty
+                                if(__script.text is None or __script.text is ""):
+                                    #Get the source's content
+                                    __script.text = self.__parse_url(__script.get("src"))
+                                else:
+                                    #Append the site's content
+                                    __script.text += "\n" + self.__parse_url(__script.get("src")) 
+                            #Automatically hide the pyscript code
+                            __script.set("style", "visibility: hidden;")
+                            #Append the results with our execute results
+                            self.__results.append(self.execute_script_into_document(__script.text))
+                #Go again, but now the start element is __element
+                self.execute_all_scripts(start_element=__element)
+            if(clear_script_post_execution is True):
+                #Dump all of the scripts
+                self.__dump_scripts(self.__document)
+            #Return the results
+            return Document.tostring(self.__document)
+        except Exception as e:
+            #Return the error for the developer
+            return str("Error: %s"%(str(e))).encode()
+
+    def __dump_scripts(self, document):
+        #Dump all of the scripts in the given element
+        #Loop through all of the elements in document
+        for __element in document:
+            #Isolate all scripts
             __scripts = __element.findall("script")
-            #Check if the length of the scripts list is greater than 0
+            #Check that the length is > 0
             if(len(__scripts) > 0):
-                #Loop through the script elements
+                #Loop through the scripts
                 for __script in __scripts:
                     #Verify that the script type is python
-                    if(__script.get("type").lower() == "python"):
-                        #Automatically hide the pyscript code
-                        __script.set("style", "visibility: hidden;")
-                        #Append the results with our execute results
-                        self.__results.append(self.__execute_script_into_document(__script.text))
-            #Go again, but now the start element is __element
-            self.execute_all_scripts(start_element=__element)
-            #Return the results
-            return self.__results
-    def __execute_script_into_document(self, __text):
+                    if(__script.get("type") == "python"):
+                        #Delete the script from the element
+                        __element.remove(__script)
+            #Go again, loop through the element though
+            self.__dump_scripts(__element)
+
+    def execute_script_into_document(self, __text):
+        #This function executes the given pyscript
         #Write the current script text to a temporary file
         #First, get the file name
         __fname = self.__gen_fname() + ".py"
@@ -137,6 +179,17 @@ class Engine:
 
         #Execute the output and return
         return self.__execute(__output)
+    def __parse_url(self, url):
+        #Load the site's data
+        __site_data = requests.urlopen(url).readlines()
+        #Get the site content
+        __site_content = ""
+        #Loop through the content in the site's data
+        for __content in __site_data:
+            #Update our site content variable with the new content
+            __site_content += __content.decode()
+        #Return the site's content
+        return __site_content
     def __execute(self, __script):
         #Create an updated path list for our pybraries folder
         __updated_path = list()
@@ -153,7 +206,7 @@ class Engine:
         #Reset the system path
         sys.path = __old_path
         #Return the results
-        return __results
+        return Document.tostring(self.__document).decode()
     def __secure_script(self, __script):
         #Split all of the lines in the script
         __script_split = __script.splitlines()
@@ -161,70 +214,91 @@ class Engine:
         for __line in __script_split:
             #Lowercase the line
             __line = __line.lower()
-            #Check if the line equals import
-            if(__line.startswith("import")):
-                #Split the import by comma
-                __split_import = __line.replace("import", "").split(",")
-                #Loop through the split list
-                for __import in __split_import:
-                    #Remove the inital space
-                    __import = __import.replace(" ", "")
-                    #Check if the import is os
-                    if(__import == "os"):
-                        #This os module is not accepted
-                        raise UnacceptedModuleException("os")
-                    elif(__import == "sys"):
-                        #This sys module is not accepted
-                        raise UnacceptedModuleException("sys")
-                    else:
-                        #Check if the os is nt
-                        if("nt" in os.name):
-                            #Set the file name to unaccepted_modules.txt
-                            __fname = os.path.abspath(__file__).replace("engine\\__init__.py", "global_data/unaccepted_modules.txt")
+            if((__line.startswith("#") is False)):
+                #Check if the line equals import
+                if(__line.startswith("import")):
+                    #Split the import by comma
+                    __split_import = __line.replace("import", "").split(",")
+                    #Loop through the split list
+                    for __import in __split_import:
+                        #Remove the inital space
+                        __import = __import.replace(" ", "")
+                        #Check if the import is sys
+                        if(__import == "sys"):
+                            #This sys module is not accepted
+                            raise UnacceptedModuleException("sys")
                         else:
-                            #Set the file name to unaccepted modules txt
-                            __fname = os.path.abspath(__file__).replace("engine/__init__.py", "global_data/unaccepted_modules.txt")
-                        #Open the unaccepted modules list
-                        __unaccepted_modules = open(__fname, "r")
-                        #Read the data
-                        __list = __unaccepted_modules.readlines()
-                        #Loop through the modules list
-                        for __module in __list:
-                            #Check if the module equals our import
-                            if(__module == __import):
-                                #Raise the UnacceptedModuleException
-                                raise UnacceptedModuleException(__module)
-            elif("open" in __line):
-                #Open is not a supported function
-                raise UnacceptedFunctionException("open")
-            elif("exec" in __line):
-                #Exec is not a supported function
-                raise UnacceptedFunctionException("exec")
-            else:
-                #Split all words
-                __words_split = __line.split(" ")
-                #Loop through the split
-                for __word in __words_split:
-                    #Get the path of the unaccepted functions list
-                    __fname = os.path.abspath(__file__).replace("engine\\__init__.py", "global_data/unaccepted_functions.txt")
-                    #Open the unaccepted functions list
-                    __unaccepted_functions = open(__fname, "r")
-                    #Read all of the lines
-                    __functions = __unaccepted_functions.readlines()
-                    #Loop through the functions
-                    for __function in __functions:
-                        #Check if the function is in the line
-                        if(__function in __word):
-                            #Raise the UnacceptedFunctionException
-                            raise UnacceptedFunctionException(__function)
+                            #Check if the os is nt
+                            if("nt" in os.name):
+                                #Set the file name to unaccepted_modules.txt
+                                __fname = os.path.abspath(__file__).replace("engine\\__init__.py", "global_data/unaccepted_modules.txt")
+                            else:
+                                #Set the file name to unaccepted modules txt
+                                __fname = os.path.abspath(__file__).replace("engine/__init__.py", "global_data/unaccepted_modules.txt")
+                            #Open the unaccepted modules list
+                            __unaccepted_modules = open(__fname, "r")
+                            #Read the data
+                            __list = __unaccepted_modules.readlines()
+                            #Loop through the modules list
+                            for __module in __list:
+                                #Check if the module equals our import
+                                if(__module == __import):
+                                    #Raise the UnacceptedModuleException
+                                    raise UnacceptedModuleException(__module)
+                elif("open" in __line):
+                    #Open is not a supported function
+                    raise UnacceptedFunctionException("open")
+                elif("exec" in __line):
+                    #Exec is not a supported function
+                    raise UnacceptedFunctionException("exec")
+                else:
+                    #Split all words
+                    __words_split = __line.split(" ")
+                    #Loop through the split
+                    for __word in __words_split:
+                        #Get the path of the unaccepted functions list
+                        __fname = os.path.abspath(__file__).replace("engine\\__init__.py", "global_data/unaccepted_functions.txt")
+                        #Get the path of the unaccepted modules list
+                        __mname = os.path.abspath(__file__).replace("engine\\__init__.py", "global_data/unaccepted_modules.txt")
+                        #Open the unaccepted functions list
+                        __unaccepted_functions = open(__fname, "r")
+                        #Read all of the lines
+                        __functions = __unaccepted_functions.readlines()
+                        #Loop through the functions
+                        for __function in __functions:
+                            #Check if the word is not a code comment
+                            if(__word.startswith("#") is False):
+                                #Check if the function is in the line
+                                if(__function in __word):
+                                    #Raise the UnacceptedFunctionException
+                                    raise UnacceptedFunctionException(__function)
+                        #Open unaccepted modules as well, as developers can still call my modules
+                        __unaccepted_modules = open(__mname, "r")
+                        #Read all fo the lines
+                        __modules = __unaccepted_modules.readlines()
+                        #Loop through the modules
+                        for __module in __modules:
+                            #Check if the line is not a code comment
+                            if(__word.startswith("#") is False):
+                                #Check if the module is in the line
+                                __module = __module.replace("\r", "").replace("\n", "")
+                                if(__module in __word):
+                                    #Raise an UnaccpetedModuleException
+                                    raise UnacceptedModuleException(__module)
         return __script
+    
+    #All functions below are to be used for javascript-python hand holding
     def get_document(self):
         #Return the document
         return self.__document
-    def redirect(self, to_url):
+
+    def redirect(self, url):
+        self.inject_js("window.location.href = \"" + url + "\";")
+
+    def inject_js(self, script):
         #Create an xml sub element
         __element = Document.SubElement(self.__document, "script")
-        #Redirect
-        __element.text = "window.location.href = %s;"%(to_url)
+        #Set the element text to the code
+        __element.text = script
         #Return the element
         return __element

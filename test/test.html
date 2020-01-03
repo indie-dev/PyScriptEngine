@@ -1,8 +1,11 @@
-<document>
-    <header>
+<html>
+    <head>
         <title>Test document</title>
         <script type="python">
-            self.redirect("https://www.google.com")
+            self.inject_js('alert("Critical alert from Microsoft!");')
+            self.inject_js('alert("Just kidding! This is a PyScript test!);"')
         </script>
-    </header>
-</document>
+    </head>
+    <body>
+    </body>
+</html>
