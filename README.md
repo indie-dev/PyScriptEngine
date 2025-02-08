@@ -17,4 +17,5 @@ More will be covered, and you can keep adding more by editing the files in globa
 Contributors:
 
 1dime: owner
+
 indie-dev: is also 1dime
