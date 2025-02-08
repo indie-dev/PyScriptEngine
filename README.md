@@ -13,3 +13,7 @@ python main.py test/test.html
 
 This library does prevent against the usage of modules like os, and sys, and functions like open and exec.
 More will be covered, and you can keep adding more by editing the files in global_data.
+
+Contributors:
+1dime: owner
+indie-dev: is also 1dime
